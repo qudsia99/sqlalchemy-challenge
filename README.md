@@ -1,37 +1,30 @@
-# sqlalchemy-challenge
+# sqlalchemy-challenge : Analysis and Observation of Hawaii's Climate + Designing a Climate App using Flask
 
-#import dependencies
+### Part 1: Climate Analysis from .sqlite and CSV files
+
+In this jupiter notebook file, with over 19,500 rows of observed data of Hawaii's climate in different regions, of percipitation and temperature changes with date stamps, I run a precipitation analysis and plot the findings via a bar graph, which highlights the highest and lowest periods of percipitation in a year for Hawaii. Then I design another query to find the temperature distribution by station distribution in Hawaii, plotted in a histogram form. 
+
+### Part 2: FLASK API using queries from part 1
+
+For this python file (app.py), I build a mini API app to access JSON routes, converting API data into Jsonified response objects.
+
+#### Libraries used:
+
+```
 from matplotlib import style
 style.use('fivethirtyeight')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import datetime as dt
-
-#Python SQL toolkit and Object Relational Mapper
-import sqlalchemy
+from flask import Flask, jsonify
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
+from dateutil.relativedelta import relativedelta
+```
 
-#create engine to hawaii.sqlite
-engine = create_engine("sqlite:///Resources/hawaii.sqlite")
-
-#reflect an existing database into a new model
-Base = automap_base()
-
-#reflect the tables
-Base.prepare(autoload_with = engine)
-
-#View all of the classes that automap found
-Base.classes.keys()
-
-#Save references to each table
-Station = Base.classes.station
-Measurement = Base.classes.measurement
-
-#Create our session (link) from Python to the DB
-session = Session(engine)
+### Preview of climate_starter.ipynb
 
 #Find the most recent date in the data set.
 newest = session.query(Measurement).order_by(Measurement.date.desc()).first()
@@ -52,7 +45,7 @@ print("Query Date: ", query_date)
 #Perform a query to retrieve the data and precipitation scores
 unique_precip_data = session.query(Measurement).filter(Measurement.date > '2016-08-23').all()
 
-# Save the query results as a Pandas DataFrame. 
+#Save the query results as a Pandas DataFrame. 
 #Explicitly set the column names
 precipitation_df = pd.DataFrame([{'date' : x.date, 'precipitation':x.prcp} for x in unique_precip_data])
 precipitation_df.head()
@@ -68,48 +61,23 @@ indices = range(0, len(precipitation_df['date']), len(precipitation_df['date']) 
 #Get the corresponding dates based on the indices
 selected_dates = [precipitation_df['date'][i] for i in indices]
 
-#Set the x-axis tick positions and labels
-plt.xticks(indices, selected_dates)
-plt.xticks(selected_dates)
-plt.tight_layout()
-plt.xlabel('Date')
-plt.ylabel('Inches')
-plt.show()
+#### Preview of app.py
 
-# Use Pandas to calculate the summary statistics for the precipitation data
-precipitation_df.describe()
+@app.route("/api/v1.0/tobs")
+def tobs():
+
+    #Since we already found the most recent year in the data from our calculations earlier, we can utilize that
+    query_date = dt.date(2017, 8, 23) - relativedelta(months=12)
 
 
-# Design a query to find the most active stations (i.e. which stations have the most rows?)
-#List the stations and their counts in descending order.
-qu = session.query(Measurement.station, func.count(Measurement.tobs)).group_by(Measurement.station).order_by(func.count(Measurement.tobs).desc())
+    #perform query to find date and temperature readings again, but for previous year
+    temp_and_year=session.query(measurements.date, measurements.tobs).filter(measurements.station=='USC00519281').\
+                                            filter(measurements.date >= query_date).all()
+    #Convert the query into a dictionary
+    temperature_di = [{'Date': date, 'Temperature': temp} for date, temp in temp_and_year]
 
-for x in qu:
+    #Close the session
+    session.close()
 
-# Using the most active station id from the previous query, calculate the lowest, highest, and average temperature.
-
-min_temp = session.query(func.min(Measurement.tobs)).filter_by(station='USC00519281').scalar()
-max_temp = session.query(func.max(Measurement.tobs)).filter_by(station='USC00519281').scalar()
-avg_temp = session.query(func.avg(Measurement.tobs)).filter_by(station='USC00519281').scalar()
-
-print(f"Minimum temperature: {min_temp}")
-print(f"Maximum temperature: {max_temp}")
-print(f"Average temperature: {avg_temp}")
-
-   print(x.station, x[1])
-
-#Using the most active station id
-# Query the last 12 months of temperature observation data for this station and plot the results as a histogram
-
-
-#Since we already gathered info regarding the most recent date value in the csv file in the 'newest' query, we can naturally deduce that we need the last 12 months from 2017-08-23, which would be until 2016-08-23
-
-newquery = session.query(Measurement.tobs).filter(Measurement.date >= '2016-08-23').order_by(Measurement.date.desc())
-
-# Grab the histogram x-values inside a new list
-temperatures = [x[0] for x in newquery]
-
-plt.hist(temperatures, bins=12)  
-plt.xlabel('Temperature')
-plt.ylabel('Frequency')
-plt.show()
+    #return Json file
+    return jsonify(temperature_di)
